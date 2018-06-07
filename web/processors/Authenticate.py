@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 """
-身份验证，允许三种验证方式：IP白名单、签名、session。
+身份验证，允许三种验证方式：IP白名单、签名、cookie-session。
 
 IP白名单不推荐使用；
 具备appId、timestamp和sign三个参数的请求使用签名进行身份验证，建议服务器间访问使用；
@@ -41,36 +41,6 @@ def _validSign():
     return float(params['timestamp']) > time.time() - 60 * 10 and params['sign'] == _md5(''.join(newParams).lower())
 
 
-def _filterInvalidPath():
-    """
-    将无效路径重定向至登录页面
-    最后一级路径指向对象不包含GET或POST方法的是无效路径，重定向
-    """
-
-    # 计算一级路径和一级应用
-    start = 0
-    app = web.ctx.app_stack[0]
-    pos = web.ctx.path.find('/', start+1)
-
-    # 循环获取最后一级路径
-    while pos > 0:
-        curPath = web.ctx.path[start:pos]
-
-        what = dict(app.mapping).get(curPath)
-        if not isinstance(what, web.application):
-            raise web.webapi.SeeOther(url=indexPath)
-
-        start, app = pos, what
-        pos = web.ctx.path.find('/', start+1)
-
-    # 最后一级路径指向的对象为业务处理类时应包含GET或POST方法
-    what = dict(app.mapping).get(web.ctx.path[start:])
-    if isinstance(what, basestring):
-        what = app.fvars.get(what)
-    if not (hasattr(what, 'GET') or hasattr(what, 'POST')):
-        raise web.webapi.SeeOther(url=indexPath)
-
-
 class NoLogin(web.HTTPError):
     """未登录"""
     message = '420 no login'
@@ -102,7 +72,6 @@ def hook(handler):
         if not _validSign():
             raise SignError()
     else:
-        _filterInvalidPath()
         if web.ctx.session.login is False and web.ctx.path != loginPath:
             raise NoLogin()
 
